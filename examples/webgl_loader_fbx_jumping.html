@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>three.js webgl - FBX loader</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+        <link type="text/css" rel="stylesheet" href="main.css">
+    </head>
+    <body>
+        <script type="importmap">
+            {
+                "imports": {
+                    "three": "../build/three.module.js",
+                    "three/addons/": "./jsm/"
+                }
+            }
+        </script>
+
+        <script type="module">
+            import * as THREE from 'three';
+            import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+            import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+            // =============================================================
+            // 1. CONFIGURACIÓN ÚNICA POR ARCHIVO
+            // Cambia estos dos valores en cada uno de tus 5 archivos HTML
+            // =============================================================
+            const NOMBRE_MODELO = 'Jumping Down.fbx'; // Cambia por: dancing.fbx, jumping.fbx, etc.
+            const COLOR_PERSONALIZADO = 0x00ff00; // Cambia por colores diferentes (ej: 0xff0000)
+            // =============================================================
+
+            let camera, scene, renderer, mixer;
+            const clock = new THREE.Clock();
+
+            init();
+
+            function init() {
+                const container = document.createElement( 'div' );
+                document.body.appendChild( container );
+
+                camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 2000 );
+                camera.position.set( 100, 200, 300 );
+
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color( 0xa0a0a0 );
+                scene.fog = new THREE.Fog( 0xa0a0a0, 200, 1000 );
+
+                // Iluminación (Luz superior requerida) 
+                const hemiLight = new THREE.HemisphereLight( 0xffffff, 0x444444, 5 );
+                hemiLight.position.set( 0, 200, 0 );
+                scene.add( hemiLight );
+
+                const dirLight = new THREE.DirectionalLight( 0xffffff, 5 );
+                dirLight.position.set( 0, 200, 100 );
+                dirLight.castShadow = true;
+                scene.add( dirLight );
+
+                // Suelo
+                const mesh = new THREE.Mesh( new THREE.PlaneGeometry( 2000, 2000 ), new THREE.MeshPhongMaterial( { color: 0x999999, depthWrite: false } ) );
+                mesh.rotation.x = - Math.PI / 2;
+                mesh.receiveShadow = true;
+                scene.add( mesh );
+
+                const grid = new THREE.GridHelper( 2000, 20, 0x000000, 0x000000 );
+                grid.material.opacity = 0.2;
+                grid.material.transparent = true;
+                scene.add( grid );
+
+                // Cargador de Modelos
+                const loader = new FBXLoader();
+                loader.load( 'models/fbx/' + NOMBRE_MODELO, function ( object ) {
+
+                    mixer = new THREE.AnimationMixer( object );
+                    const action = mixer.clipAction( object.animations[ 0 ] );
+                    action.play();
+
+                    object.traverse( function ( child ) {
+                        if ( child.isMesh ) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+
+                            // Aplicar material con brillo (Shininess) [cite: 25, 26]
+                            child.material = new THREE.MeshPhongMaterial({
+                                color: COLOR_PERSONALIZADO,
+                                shininess: 150, // Brillo sumado a la iluminación [cite: 26]
+                                specular: 0x222222
+                            });
+                        }
+                    } );
+
+                    scene.add( object );
+                } );
+
+                renderer = new THREE.WebGLRenderer( { antialias: true } );
+                renderer.setPixelRatio( window.devicePixelRatio );
+                renderer.setSize( window.innerWidth, window.innerHeight );
+                renderer.setAnimationLoop( animate );
+                renderer.shadowMap.enabled = true;
+                container.appendChild( renderer.domElement );
+
+                const controls = new OrbitControls( camera, renderer.domElement );
+                controls.target.set( 0, 100, 0 );
+                controls.update();
+
+                window.addEventListener( 'resize', onWindowResize );
+            }
+
+            function onWindowResize() {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize( window.innerWidth, window.innerHeight );
+            }
+
+            function animate() {
+                const delta = clock.getDelta();
+                if ( mixer ) mixer.update( delta );
+                renderer.render( scene, camera );
+            }
+        </script>
+    </body>
+</html>
